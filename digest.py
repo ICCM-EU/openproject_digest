@@ -1,6 +1,3 @@
-# pip install psycopg2-binary
-# pip install Jinja2
-
 import psycopg2
 import psycopg2.extras
 import sqlite3
@@ -14,6 +11,8 @@ from email.mime.text import MIMEText
 
 CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
+LENGTH_EXCERPT = 100
+DEBUG = False
 
 configfile="/etc/openproject/conf.d/00_addon_postgres"
 if os.path.isfile(configfile):
@@ -73,7 +72,7 @@ t TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
 
 # get all users per project
 sqlUsersProjects = """
-select users.id, mail, login, firstname, lastname, value as frequency, project_id, projects.name as project_name
+select users.id, mail, login, firstname, lastname, value as frequency, '' as account_url, project_id, projects.name as project_name
 from users, custom_values, custom_fields, members, projects
 where customized_id = users.id and custom_field_id = custom_fields.id 
 and custom_fields.name='FrequencyNotification' and users.type='User' 
@@ -105,7 +104,6 @@ def processUser(frequency):
       return False
 
   # frequency: daily, send at 7 am
-  print(row['frequency'] + " " + str(now.hour))
   if frequency == 2:
     if now.hour != 7:
       return False
@@ -144,7 +142,7 @@ def sendMail(user, messages):
   file_loader = jinja2.FileSystemLoader('templates')
   env = jinja2.Environment(loader=file_loader)
   template = env.get_template('digest.html')
-  output = template.render(messages=messages)
+  output = template.render(user=user, messages=messages)
 
   try:
     context = ssl.create_default_context()
@@ -156,11 +154,19 @@ def sendMail(user, messages):
     msg['From'] = "no_reply@" + hostname
     msg['To'] = user['mail']
     msg.attach(MIMEText(output, 'html'))
-    server.sendmail(msg['From'], msg['To'], msg.as_string())
+
+    if DEBUG:
+      print(msg.as_string())
+    else:
+      server.sendmail(msg['From'], msg['To'], msg.as_string())
   except Exception as e:
     print(e)
   finally:
     server.quit()
+
+  if DEBUG:
+    # don't store in sqlite database
+    return False
 
   return True
 
@@ -169,7 +175,10 @@ cur.execute(sqlUsersProjects)
 rows = cur.fetchall()
 for userRow in rows:
   # should we process this user now?
-  if processUser(int(userRow['frequency'])):
+  if DEBUG or processUser(int(userRow['frequency'])):
+
+    userRow['account_url'] = ("%s/my/account" % (pageurl,))
+
     # get all new messages
     messages = []
     cur.execute(sqlForumMessages, (userRow['project_id'],))
@@ -178,8 +187,8 @@ for userRow in rows:
       if not alreadyNotified(userRow['id'], userRow['project_id'], p['id'], CONTENT_TYPE_MESSAGES):
         if p['parent_id'] is None:
           p['parent_id'] = p['id']
-        if len(p['content']) > 50:
-          p['content'] = p['content'][0:50] + "..."
+        if len(p['content']) > LENGTH_EXCERPT:
+          p['content'] = p['content'][0:LENGTH_EXCERPT] + "..."
         p['url'] = ("%s/topics/%s?r=%s#message-%s" % (pageurl, p['parent_id'], p['id'], p['id']))
         messages.append(p)
 
