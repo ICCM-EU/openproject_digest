@@ -2,6 +2,7 @@ import psycopg2
 import psycopg2.extras
 import sqlite3
 import os.path
+from pathlib import Path
 import re
 import datetime
 import jinja2
@@ -13,9 +14,10 @@ CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
 LENGTH_EXCERPT = 100
 CUSTOMFIELD_FREQUENCY = "FrequencyDigest"
-START_DATE = '2020-11-25'
+START_DATE = '2020-11-22'
 DEBUG = True
 
+dbname = None
 configfile="/etc/openproject/conf.d/00_addon_postgres"
 if os.path.isfile(configfile):
   f = open(configfile, "r")
@@ -27,20 +29,24 @@ if os.path.isfile(configfile):
   dbname=re.search(r"\/([^/]*?)\"", config).group(1)
   dbhost=re.search(r"@(.*):", config).group(1)
 else:
-  configfile="~/openproject/config/database.yml"
+  configfile=("%s/openproject/config/database.yml" % (Path.home(),))
   if os.path.isfile(configfile):
     f = open(configfile, "r")
     for line in f:
       dbport = 5432
       # host: localhost
       if "host: " in line:
-        dbhost = re.search(r": (.*)", config).group(1)
+        dbhost = re.search(r": (.*)", line).group(1)
       if "database: " in line:
-        dbname = re.search(r": (.*)", config).group(1)
+        dbname = re.search(r": (.*)", line).group(1)
       if "username: " in line:
-        dbuser = re.search(r": (.*)", config).group(1)
+        dbuser = re.search(r": (.*)", line).group(1)
       if "password: " in line:
-        dbpwd = re.search(r": (.*)", config).group(1).replace('"', '')
+        dbpwd = re.search(r": (.*)", line).group(1).replace('"', '')
+
+if not dbname:
+  print("could not find the config file")
+  exit(-1)
 
 # Connect to your postgres DB
 params = {'dbname': dbname, 'user': dbuser, 'password': dbpwd, 'port': dbport, 'host': dbhost}
@@ -138,12 +144,14 @@ def sendMail(user, messages):
 
   try:
     context = ssl.create_default_context()
-    server = smtplib.SMTP(smtp_host, smtp_port)
-    server.starttls(context=context) 
-    server.login(smtp_username, smtp_password)
+    server = smtplib.SMTP(settings['smtp_host'], settings['smtp_port'])
+    if settings['smtp_host'] != "localhost":
+      server.starttls(context=context)
+    if settings['smtp_username']:
+      server.login(settings['smtp_username'], settings['smtp_password'])
     msg = MIMEMultipart('alternative')
     msg['Subject'] = ("%s OpenProject Digest" % (user['project_name'],))
-    msg['From'] = admin_email
+    msg['From'] = settings['admin_email']
     msg['To'] = user['mail']
     msg.attach(MIMEText(output, 'html'))
 
@@ -168,35 +176,38 @@ def sendMail(user, messages):
 
   return True
 
-
 # get the settings for SMTP and the URL
-sqlSettings = """
+def getSettings():
+  sqlSettings = """
     select name, value
     from settings
     where name in ('mail_from', 'protocol', 'host_name', 'smtp_address', 'smtp_port', 'smtp_domain', 'smtp_user_name', 'smtp_password', 'smtp_enable_starttls_auto')"""
-cur.execute(sqlSettings)
-rows = cur.fetchall()
-pageurl = ""
-for row in rows:
-  if row['name'] == 'host_name':
-     pageurl += row['value']
-  if row['name'] == 'protocol':
-     pageurl = row['value'] + "://" + pageurl
-  if row['name'] == 'mail_from':
-     admin_email = row['value']
-  if row['name'] == 'smtp_address':
-     smtp_host = row['value']
-  if row['name'] == 'smtp_port':
-     smtp_port = row['value']
-  if row['name'] == 'smtp_user_name':
-     smtp_username = row['value']
-  if row['name'] == 'smtp_password':
-     smtp_password = row['value']
-  if row['name'] == 'smtp_domain':
-     smtp_domain = row['value']
-  if row['name'] == 'smtp_enable_starttls_auto':
-     smtp_enable_starttls_auto = row['value']
+  cur.execute(sqlSettings)
+  rows = cur.fetchall()
+  settings = {}
+  settings['pageurl'] = ''
+  for row in rows:
+    if row['name'] == 'host_name':
+       settings['pageurl'] += row['value']
+    if row['name'] == 'protocol':
+       settings['pageurl'] = row['value'] + "://" + settings['pageurl']
+    if row['name'] == 'mail_from':
+       settings['admin_email'] = row['value']
+    if row['name'] == 'smtp_address':
+       settings['smtp_host'] = row['value']
+    if row['name'] == 'smtp_port':
+       settings['smtp_port'] = row['value']
+    if row['name'] == 'smtp_user_name':
+       settings['smtp_username'] = row['value']
+    if row['name'] == 'smtp_password':
+       settings['smtp_password'] = row['value']
+    if row['name'] == 'smtp_domain':
+       settings['smtp_domain'] = row['value']
+    if row['name'] == 'smtp_enable_starttls_auto':
+       settings['smtp_enable_starttls_auto'] = row['value']
+  return settings
 
+settings = getSettings()
 cur.execute(sqlUsersProjects, (CUSTOMFIELD_FREQUENCY,))
 rows = cur.fetchall()
 if not rows:
@@ -207,7 +218,7 @@ for userRow in rows:
   # should we process this user now?
   if DEBUG or processUser(int(userRow['frequency'])):
 
-    userRow['account_url'] = ("%s/my/account" % (pageurl,))
+    userRow['account_url'] = ("%s/my/account" % (settings['pageurl'],))
 
     # get all new messages
     messages = []
@@ -219,7 +230,7 @@ for userRow in rows:
           p['parent_id'] = p['id']
         if len(p['content']) > LENGTH_EXCERPT:
           p['content'] = p['content'][0:LENGTH_EXCERPT] + "..."
-        p['url'] = ("%s/topics/%s?r=%s#message-%s" % (pageurl, p['parent_id'], p['id'], p['id']))
+        p['url'] = ("%s/topics/%s?r=%s#message-%s" % (settings['pageurl'], p['parent_id'], p['id'], p['id']))
         messages.append(p)
 
     if sendMail(userRow, messages):
