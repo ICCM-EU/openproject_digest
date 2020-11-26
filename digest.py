@@ -12,7 +12,9 @@ from email.mime.text import MIMEText
 CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
 LENGTH_EXCERPT = 100
-DEBUG = False
+CUSTOMFIELD_FREQUENCY = "FrequencyDigest"
+START_DATE = '2020-11-25'
+DEBUG = True
 
 configfile="/etc/openproject/conf.d/00_addon_postgres"
 if os.path.isfile(configfile):
@@ -24,41 +26,28 @@ if os.path.isfile(configfile):
   dbport=re.search(r":([0-9]+)\/", config).group(1)
   dbname=re.search(r"\/([^/]*?)\"", config).group(1)
   dbhost=re.search(r"@(.*):", config).group(1)
-
-configfile="/etc/openproject/conf.d/server"
-if os.path.isfile(configfile):
-  f = open(configfile, "r")
-  # export SERVER_HOSTNAME="dev.openproject.pokorra.de"
-  # export SERVER_PROTOCOL="http"
-  pageurl = ""
-  for line in f:
-    if "SERVER_HOSTNAME" in line:
-      hostname = re.search(r"\"(.*?)\"", line).group(1)
-      pageurl += hostname
-    if "SERVER_PROTOCOL" in line:
-      pageurl = re.search(r"\"(.*?)\"", line).group(1) + "://" + pageurl
-
-configfile="/etc/openproject/conf.d/smtp"
-if os.path.isfile(configfile):
-  f = open(configfile, "r")
-  # export EMAIL_DELIVERY_METHOD="smtp"
-  for line in f:
-    if "ADMIN_EMAIL" in line:
-      admin_email = re.search(r"\"(.*?)\"", line).group(1)
-    if "SMTP_HOST" in line:
-      smtp_host = re.search(r"\"(.*?)\"", line).group(1)
-    if "SMTP_PORT" in line:
-      smtp_port = re.search(r"\"(.*?)\"", line).group(1)
-    if "SMTP_USERNAME" in line:
-      smtp_username = re.search(r"\"(.*?)\"", line).group(1)
-    if "SMTP_PASSWORD" in line:
-      smtp_password = re.search(r"\"(.*?)\"", line).group(1)
+else:
+  configfile="~/openproject/config/database.yml"
+  if os.path.isfile(configfile):
+    f = open(configfile, "r")
+    for line in f:
+      dbport = 5432
+      # host: localhost
+      if "host: " in line:
+        dbhost = re.search(r": (.*)", config).group(1)
+      if "database: " in line:
+        dbname = re.search(r": (.*)", config).group(1)
+      if "username: " in line:
+        dbuser = re.search(r": (.*)", config).group(1)
+      if "password: " in line:
+        dbpwd = re.search(r": (.*)", config).group(1).replace('"', '')
 
 # Connect to your postgres DB
 params = {'dbname': dbname, 'user': dbuser, 'password': dbpwd, 'port': dbport, 'host': dbhost}
 conn = psycopg2.connect(**params)
 cur = conn.cursor(cursor_factory = psycopg2.extras.DictCursor)
 
+# Connect to the sqlite database
 sq3 = sqlite3.connect('notifications.sqlite3')
 sq3.execute("""
 CREATE TABLE IF NOT EXISTS Notified (
@@ -75,7 +64,7 @@ sqlUsersProjects = """
 select users.id, mail, login, firstname, lastname, value as frequency, '' as account_url, project_id, projects.name as project_name
 from users, custom_values, custom_fields, members, projects
 where customized_id = users.id and custom_field_id = custom_fields.id 
-and custom_fields.name='FrequencyNotification' and users.type='User' 
+and custom_fields.name=%s and users.type='User' 
 and users.status=1 and users.id = members.user_id
 and members.project_id = projects.id"""
 
@@ -83,7 +72,9 @@ and members.project_id = projects.id"""
 sqlForumMessages = """
 select messages.id, forum_id, parent_id, subject, firstname, lastname, login, messages.created_on, content, '' as url
 from messages, users, forums
-where messages.author_id = users.id and forums.id = messages.forum_id and forums.project_id = %s order by created_on asc"""
+where messages.author_id = users.id and forums.id = messages.forum_id and forums.project_id = %s
+and messages.created_on >= %s
+order by created_on asc"""
 
 # verify if user has already been notified abou this content
 sqlCheckNotification = """
@@ -94,6 +85,7 @@ where user_id = ? and project_id = ? and content_id = ? and content_type = ?"""
 sqlAddNotification = """
 insert into Notified(user_id, project_id, content_id, content_type)
 values(?,?,?,?)"""
+
 
 def processUser(frequency):
   now = datetime.datetime.now()
@@ -151,14 +143,20 @@ def sendMail(user, messages):
     server.login(smtp_username, smtp_password)
     msg = MIMEMultipart('alternative')
     msg['Subject'] = ("%s OpenProject Digest" % (user['project_name'],))
-    msg['From'] = "no_reply@" + hostname
+    msg['From'] = admin_email
     msg['To'] = user['mail']
     msg.attach(MIMEText(output, 'html'))
 
     if DEBUG:
       print(msg.as_string())
     else:
-      server.sendmail(msg['From'], msg['To'], msg.as_string())
+      print("sending email to %s" % (msg['To']))
+      result = server.sendmail(msg['From'], msg['To'], msg.as_string())
+      if result:
+        print("sending the email did not work")
+        for element in result:
+          print(element)
+        return False
   except Exception as e:
     print(e)
   finally:
@@ -171,8 +169,40 @@ def sendMail(user, messages):
   return True
 
 
-cur.execute(sqlUsersProjects)
+# get the settings for SMTP and the URL
+sqlSettings = """
+    select name, value
+    from settings
+    where name in ('mail_from', 'protocol', 'host_name', 'smtp_address', 'smtp_port', 'smtp_domain', 'smtp_user_name', 'smtp_password', 'smtp_enable_starttls_auto')"""
+cur.execute(sqlSettings)
 rows = cur.fetchall()
+pageurl = ""
+for row in rows:
+  if row['name'] == 'host_name':
+     pageurl += row['value']
+  if row['name'] == 'protocol':
+     pageurl = row['value'] + "://" + pageurl
+  if row['name'] == 'mail_from':
+     admin_email = row['value']
+  if row['name'] == 'smtp_address':
+     smtp_host = row['value']
+  if row['name'] == 'smtp_port':
+     smtp_port = row['value']
+  if row['name'] == 'smtp_user_name':
+     smtp_username = row['value']
+  if row['name'] == 'smtp_password':
+     smtp_password = row['value']
+  if row['name'] == 'smtp_domain':
+     smtp_domain = row['value']
+  if row['name'] == 'smtp_enable_starttls_auto':
+     smtp_enable_starttls_auto = row['value']
+
+cur.execute(sqlUsersProjects, (CUSTOMFIELD_FREQUENCY,))
+rows = cur.fetchall()
+if not rows:
+  # fail if no CustomField exists
+  print('We cannot find any users with custom field %s' % (CUSTOMFIELD_FREQUENCY,))
+  exit(-1)
 for userRow in rows:
   # should we process this user now?
   if DEBUG or processUser(int(userRow['frequency'])):
@@ -181,7 +211,7 @@ for userRow in rows:
 
     # get all new messages
     messages = []
-    cur.execute(sqlForumMessages, (userRow['project_id'],))
+    cur.execute(sqlForumMessages, (userRow['project_id'],START_DATE,))
     posts = cur.fetchall()
     for p in posts:
       if not alreadyNotified(userRow['id'], userRow['project_id'], p['id'], CONTENT_TYPE_MESSAGES):
