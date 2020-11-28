@@ -15,7 +15,7 @@ CONTENT_TYPE_TASKS = 2
 LENGTH_EXCERPT = 100
 CUSTOMFIELD_FREQUENCY = "FrequencyDigest"
 START_DATE = '2020-11-22'
-DEBUG = True
+DEBUG = False
 
 dbname = None
 configfile="/etc/openproject/conf.d/00_addon_postgres"
@@ -142,10 +142,11 @@ def sendMail(user, messages):
   template = env.get_template('digest.html')
   output = template.render(user=user, messages=messages)
 
+  server = None
   try:
     context = ssl.create_default_context()
     server = smtplib.SMTP(settings['smtp_host'], settings['smtp_port'])
-    if settings['smtp_host'] != "localhost":
+    if settings['smtp_host'] != "localhost" and settings['smtp_enable_starttls_auto'] != '0':
       server.starttls(context=context)
     if settings['smtp_username']:
       server.login(settings['smtp_username'], settings['smtp_password'])
@@ -168,7 +169,8 @@ def sendMail(user, messages):
   except Exception as e:
     print(e)
   finally:
-    server.quit()
+    if server is not None:
+      server.quit()
 
   if DEBUG:
     # don't store in sqlite database

@@ -7,7 +7,7 @@ This is a Python script, that queries the PostgreSQL database for the latest upd
 
 You must add a custom setting to your OpenProject at https://your.openproject.example.org/custom_fields?tab=UserCustomField. It should be called FrequencyDigest, it should be a list and have these values in this order: every 3 hours, daily (default), weekly, disabled
 
-The CustomField FrequencyNotification should be required, visible and editable.
+The CustomField FrequencyDigest should be required, visible and editable.
 
 To run this script, setup a virtual environment, and install the required packages:
 
