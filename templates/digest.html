@@ -13,6 +13,17 @@
 </ul>
 {% endif %}
 
+{% if tasks|count > 0 %}
+<h2>New and updated work packages</h2>
+<ul>
+{% for task in tasks %}
+  <li><a href="{{ task.url }}">{{ task.subject }}</a> - {{ task.updated_at.strftime('%Y-%m-%d %H:%M') }}<br/>
+  {{  task.description }}
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+
 <h2>Configure this digest</h2>
 Go to your <a href="{{ user.account_url }}">account settings</a> and modify the setting FrequencyDigest!
 </body>

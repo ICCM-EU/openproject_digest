@@ -82,6 +82,15 @@ where messages.author_id = users.id and forums.id = messages.forum_id and forums
 and messages.created_on >= %s
 order by created_on asc"""
 
+# get all created or updated tasks per project within the past 2 weeks
+sqlUpdatedTasks = """
+select w.id, p.identifier as projectslug, w.subject, w.description, w.updated_at, '' as url
+from work_packages as w, projects as p
+where w.project_id = p.id
+and w.project_id = %s
+and w.updated_at >= %s
+order by updated_at asc"""
+
 # verify if user has already been notified abou this content
 sqlCheckNotification = """
 select *
@@ -128,28 +137,24 @@ def alreadyNotified(userId, projectId, contentId, contentType):
 def storeNotified(userId, projectId, contentId, contentType):
   sq3.execute(sqlAddNotification, (userId, projectId, contentId, contentType,))
 
-def storeAllNotified(user, messages):
+def storeAllNotified(user, messages, tasks):
   for post in messages:
     storeNotified(user['id'], user['project_id'], post['id'], CONTENT_TYPE_MESSAGES)
+  for task in tasks:
+    storeNotified(user['id'], user['project_id'], task['id'], CONTENT_TYPE_TASKS)
   sq3.commit()
 
-def sendMail(user, messages):
-  if len(messages) == 0:
+def sendMail(user, messages, tasks):
+  if (len(messages) == 0) and (len(tasks) == 0):
     return
 
   file_loader = jinja2.FileSystemLoader('templates')
   env = jinja2.Environment(loader=file_loader)
   template = env.get_template('digest.html')
-  output = template.render(user=user, messages=messages)
+  output = template.render(user=user, messages=messages, tasks=tasks)
 
   server = None
   try:
-    context = ssl.create_default_context()
-    server = smtplib.SMTP(settings['smtp_host'], settings['smtp_port'])
-    if settings['smtp_host'] != "localhost" and settings['smtp_enable_starttls_auto'] != '0':
-      server.starttls(context=context)
-    if settings['smtp_username']:
-      server.login(settings['smtp_username'], settings['smtp_password'])
     msg = MIMEMultipart('alternative')
     msg['Subject'] = ("%s OpenProject Digest" % (user['project_name'],))
     msg['From'] = settings['admin_email']
@@ -160,6 +165,12 @@ def sendMail(user, messages):
       print(msg.as_string())
     else:
       print("sending email to %s" % (msg['To']))
+      context = ssl.create_default_context()
+      server = smtplib.SMTP(settings['smtp_host'], settings['smtp_port'])
+      if settings['smtp_host'] != "localhost" and settings['smtp_enable_starttls_auto'] != '0':
+        server.starttls(context=context)
+      if settings['smtp_username']:
+        server.login(settings['smtp_username'], settings['smtp_password'])
       result = server.sendmail(msg['From'], msg['To'], msg.as_string())
       if result:
         print("sending the email did not work")
@@ -235,8 +246,19 @@ for userRow in rows:
         p['url'] = ("%s/topics/%s?r=%s#message-%s" % (settings['pageurl'], p['parent_id'], p['id'], p['id']))
         messages.append(p)
 
-    if sendMail(userRow, messages):
-      storeAllNotified(userRow, messages)
+    # get all new or updated tasks
+    tasks = []
+    cur.execute(sqlUpdatedTasks, (userRow['project_id'],START_DATE,))
+    items = cur.fetchall()
+    for p in items:
+      if not alreadyNotified(userRow['id'], userRow['project_id'], p['id'], CONTENT_TYPE_TASKS):
+        if len(p['description']) > LENGTH_EXCERPT:
+          p['description'] = p['description'][0:LENGTH_EXCERPT] + "..."
+        p['url'] = ("%s/projects/%s/work_packages/%s/activity" % (settings['pageurl'], p['projectslug'], p['id']))
+        tasks.append(p)
+
+    if sendMail(userRow, messages, tasks):
+      storeAllNotified(userRow, messages, tasks)
 
 
 
