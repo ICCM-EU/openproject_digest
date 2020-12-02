@@ -76,7 +76,7 @@ and members.project_id = projects.id"""
 
 # get all posts per project within the past 2 weeks
 sqlForumMessages = """
-select messages.id, forum_id, parent_id, subject, firstname, lastname, login, messages.created_on, content, '' as url
+select messages.id, forum_id, parent_id, forums.name as forum_name, subject, firstname, lastname, login, messages.created_on, content, '' as url
 from messages, users, forums
 where messages.author_id = users.id and forums.id = messages.forum_id and forums.project_id = %s
 and messages.created_on >= %s

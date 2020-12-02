@@ -6,7 +6,8 @@
 <h2>New posts in the forum</h2>
 <ul>
 {% for post in messages %}
-  <li>{{post.login}} wrote: <a href="{{ post.url }}">{{ post.subject }}</a> - {{ post.created_on.strftime('%Y-%m-%d %H:%M') }}<br/>
+  <li>[{{post.forum_name}}]<br/>
+  {{post.login}} wrote: <a href="{{ post.url }}">{{ post.subject }}</a> - {{ post.created_on.strftime('%Y-%m-%d %H:%M') }}<br/>
   {{  post.content }}
   </li>
 {% endfor %}
