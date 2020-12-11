@@ -45,7 +45,7 @@ if not dbname:
   print("could not find the config file")
   exit(-1)
 
-configfile=("%s/moxtra_notifications.yml" % (Path.home(),))
+configfile=("%s/digest/moxtra_notifications.yml" % (Path.home(),))
 if os.path.isfile(configfile):
   f = open(configfile, "r")
   for line in f:
