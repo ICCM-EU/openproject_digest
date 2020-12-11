@@ -7,12 +7,15 @@ import re
 import datetime
 import requests
 import json
+from pytz import timezone
+import pytz
 
 CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
 LENGTH_EXCERPT = 100
 START_DATE = '2020-12-10'
 DEBUG = False
+localtz = timezone('Europe/Amsterdam')
 
 dbname = None
 configfile="/etc/openproject/conf.d/00_addon_postgres"
@@ -167,8 +170,9 @@ def sendNotifications(messages, tasks):
   try:
 
     for post in messages:
+        created_on = pytz.utc.localize(post['created_on'], is_dst=None).astimezone(localtz)
         msg = ("[%s] %s\n%s wrote: %s\n%s\n%s" %
-            (post['forum_name'], post['created_on'].strftime('%Y-%m-%d %H:%M'),post['login'],post['subject'],post['content'],post['url']))
+            (post['forum_name'], created_on.strftime('%Y-%m-%d %H:%M'),post['login'],post['subject'],post['content'],post['url']))
         if DEBUG:
             print(msg)
         else:

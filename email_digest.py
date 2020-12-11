@@ -9,6 +9,8 @@ import jinja2
 import smtplib, ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pytz import timezone
+import pytz
 
 CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
@@ -16,6 +18,7 @@ LENGTH_EXCERPT = 100
 CUSTOMFIELD_FREQUENCY = "FrequencyDigest"
 START_DATE = '2020-11-22'
 DEBUG = False
+localtz = timezone('Europe/Amsterdam')
 
 dbname = None
 configfile="/etc/openproject/conf.d/00_addon_postgres"
@@ -243,6 +246,7 @@ for userRow in rows:
           p['parent_id'] = p['id']
         if len(p['content']) > LENGTH_EXCERPT:
           p['content'] = p['content'][0:LENGTH_EXCERPT].strip() + "[...]"
+        p['created_on'] = pytz.utc.localize(p['created_on'], is_dst=None).astimezone(localtz)
         p['url'] = ("%s/topics/%s?r=%s#message-%s" % (settings['pageurl'], p['parent_id'], p['id'], p['id']))
         messages.append(p)
 
