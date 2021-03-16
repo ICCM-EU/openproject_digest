@@ -2,6 +2,7 @@ import psycopg2
 import psycopg2.extras
 import sqlite3
 import os.path
+import sys
 from pathlib import Path
 import re
 import datetime
@@ -48,7 +49,10 @@ if not dbname:
   print("could not find the config file")
   exit(-1)
 
-configfile=("%s/moxtra_notifications.yml" % (os.path.dirname(os.path.realpath(__file__)),))
+configparameter = "moxtra_notifications.yml"
+if len(sys.argv) > 1:
+    configparameter = sys.argv[1]
+configfile=("%s/%s" % (os.path.dirname(os.path.realpath(__file__)),configparameter))
 if os.path.isfile(configfile):
   f = open(configfile, "r")
   for line in f:
