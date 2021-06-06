@@ -79,11 +79,11 @@ and members.project_id = projects.id"""
 
 # get all posts per project within the past 2 weeks
 sqlForumMessages = """
-select messages.id, forum_id, parent_id, forums.name as forum_name, subject, firstname, lastname, login, messages.created_on, content, '' as url
+select messages.id, forum_id, parent_id, forums.name as forum_name, subject, firstname, lastname, login, messages.created_at, content, '' as url
 from messages, users, forums
 where messages.author_id = users.id and forums.id = messages.forum_id and forums.project_id = %s
-and messages.created_on >= %s
-order by created_on asc"""
+and messages.created_at >= %s
+order by created_at asc"""
 
 # get all created or updated tasks per project within the past 2 weeks
 sqlUpdatedTasks = """
@@ -246,7 +246,7 @@ for userRow in rows:
           p['parent_id'] = p['id']
         if len(p['content']) > LENGTH_EXCERPT:
           p['content'] = p['content'][0:LENGTH_EXCERPT].strip() + "[...]"
-        p['created_on'] = pytz.utc.localize(p['created_on'], is_dst=None).astimezone(localtz)
+        p['created_at'] = pytz.utc.localize(p['created_at'], is_dst=None).astimezone(localtz)
         p['url'] = ("%s/topics/%s?r=%s#message-%s" % (settings['pageurl'], p['parent_id'], p['id'], p['id']))
         messages.append(p)
 
@@ -256,7 +256,7 @@ for userRow in rows:
     items = cur.fetchall()
     for p in items:
       if not alreadyNotified(userRow['id'], userRow['project_id'], p['id'], CONTENT_TYPE_TASKS):
-        if len(p['description']) > LENGTH_EXCERPT:
+        if p['description'] is not None and len(p['description']) > LENGTH_EXCERPT:
           p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + "[...]"
         p['url'] = ("%s/projects/%s/work_packages/%s/activity" % (settings['pageurl'], p['projectslug'], p['id']))
         tasks.append(p)

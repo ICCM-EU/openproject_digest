@@ -89,11 +89,11 @@ where identifier = %s"""
 
 # get all posts per project within the past 2 weeks
 sqlForumMessages = """
-select messages.id, forum_id, parent_id, forums.name as forum_name, subject, firstname, lastname, login, messages.created_on, content, '' as url
+select messages.id, forum_id, parent_id, forums.name as forum_name, subject, firstname, lastname, login, messages.created_at, content, '' as url
 from messages, users, forums
 where messages.author_id = users.id and forums.id = messages.forum_id and forums.project_id = %s
-and messages.created_on >= %s
-order by created_on asc"""
+and messages.created_at >= %s
+order by created_at asc"""
 
 # get all created or updated tasks per project within the past 2 weeks
 sqlUpdatedTasks = """
@@ -174,9 +174,9 @@ def sendNotifications(messages, tasks):
   try:
 
     for post in messages:
-        created_on = pytz.utc.localize(post['created_on'], is_dst=None).astimezone(localtz)
+        created_at = pytz.utc.localize(post['created_at'], is_dst=None).astimezone(localtz)
         msg = ("[%s] %s\n%s wrote: %s\n%s\n%s" %
-            (post['forum_name'], created_on.strftime('%Y-%m-%d %H:%M'),post['login'],post['subject'],post['content'],post['url']))
+            (post['forum_name'], created_at.strftime('%Y-%m-%d %H:%M'),post['login'],post['subject'],post['content'],post['url']))
         if DEBUG:
             print(msg)
         else:
