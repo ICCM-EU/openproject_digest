@@ -246,7 +246,7 @@ if DEBUG or processUser(int(frequency)):
     items = cur.fetchall()
     for p in items:
       if not alreadyNotified(user_id, project_id, p['id'], CONTENT_TYPE_TASKS):
-        if len(p['description']) > LENGTH_EXCERPT:
+        if p['description'] is not None and len(p['description']) > LENGTH_EXCERPT:
           p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + " [...]"
         p['url'] = ("%s/projects/%s/work_packages/%s/activity" % (settings['pageurl'], p['projectslug'], p['id']))
         tasks.append(p)
