@@ -13,7 +13,7 @@ import pytz
 
 CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
-LENGTH_EXCERPT = 100
+LENGTH_EXCERPT = 100000
 START_DATE = '2020-12-10'
 DEBUG = False
 localtz = timezone('Europe/Amsterdam')
