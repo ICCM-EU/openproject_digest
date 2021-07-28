@@ -177,6 +177,7 @@ def sendNotifications(messages, tasks):
         created_at = pytz.utc.localize(post['created_at'], is_dst=None).astimezone(localtz)
         msg = ("[%s] %s\n%s wrote: %s\n%s\n%s" %
             (post['forum_name'], created_at.strftime('%Y-%m-%d %H:%M'),post['login'],post['subject'],post['content'],post['url']))
+        msg = msg.replace("&quot;", '"').replace("&#39;", "'")
         if DEBUG:
             print(msg)
         else:
