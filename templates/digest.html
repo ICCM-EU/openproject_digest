@@ -25,6 +25,17 @@
 </ul>
 {% endif %}
 
+{% if meetings|count > 0 %}
+<h2>New and updated meetings</h2>
+<ul>
+{% for m in meetings %}
+  <li><a href="{{ m.url }}">{{ m.type }}&nbsp;{{ m.subject }}</a> - {{ m.updated_at.strftime('%Y-%m-%d %H:%M') }}<br/>
+  {{  m.description }}
+  </li>
+{% endfor %}
+</ul>
+{% endif %}
+
 <h2>Configure this digest</h2>
 Go to your <a href="{{ user.account_url }}">account settings</a> and modify the setting FrequencyDigest!
 </body>

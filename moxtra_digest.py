@@ -13,8 +13,10 @@ import pytz
 
 CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
+CONTENT_TYPE_MEETING_AGENDA = 3
+CONTENT_TYPE_MEETING_MINUTES = 4
 LENGTH_EXCERPT = 100000
-START_DATE = '2020-12-10'
+START_DATE = '2021-12-01'
 DEBUG = False
 localtz = timezone('Europe/Amsterdam')
 
@@ -104,6 +106,16 @@ and w.project_id = %s
 and w.updated_at >= %s
 order by updated_at asc"""
 
+# get all created or updated meetings per project within the past 2 weeks
+sqlUpdatedMeetings = """
+select mc.id, p.identifier as projectslug, m.title as subject, m.start_time, mc.type, mc.text as description, mc.updated_at, '' as url
+from meetings as m, meeting_contents as mc, projects as p
+where m.project_id = p.id
+and m.project_id = %s
+and mc.meeting_id = m.id
+and mc.updated_at >= %s
+order by mc.updated_at asc"""
+
 # verify if user has already been notified abou this content
 sqlCheckNotification = """
 select *
@@ -154,11 +166,16 @@ def alreadyNotified(userId, projectId, contentId, contentType):
 def storeNotified(userId, projectId, contentId, contentType):
   sq3.execute(sqlAddNotification, (userId, projectId, contentId, contentType,))
 
-def storeAllNotified(user_id, project_id, messages, tasks):
+def storeAllNotified(user_id, project_id, messages, tasks, meetings):
   for post in messages:
     storeNotified(user_id, project_id, post['id'], CONTENT_TYPE_MESSAGES)
   for task in tasks:
     storeNotified(user_id, project_id, task['id'], CONTENT_TYPE_TASKS)
+  for meeting in meetings:
+    if meeting['type'] == 'MeetingMinutes':
+      storeNotified(user_id, project_id, meeting['id'], CONTENT_TYPE_MEETING_MINUTES)
+    if meeting['type'] == 'MeetingAgenda':
+      storeNotified(user_id, project_id, meeting['id'], CONTENT_TYPE_MEETING_AGENDA)
   sq3.commit()
 
 def sendNotification(sender, msg):
@@ -188,6 +205,12 @@ def sendNotifications(messages, tasks):
             print(msg)
         else:
             sendNotification('OpenProject Tasks', msg)
+    for meeting in meetings:
+        msg = ("%s\n%s\n%s" % (meeting['subject'], meeting['description'], meeting['url']))
+        if DEBUG:
+            print(msg)
+        else:
+            sendNotification("OpenProject %s" % (meeting['type'],), msg)
 
   except Exception as e:
     print(e)
@@ -252,8 +275,28 @@ if DEBUG or processUser(int(frequency)):
         p['url'] = ("%s/projects/%s/work_packages/%s/activity" % (settings['pageurl'], p['projectslug'], p['id']))
         tasks.append(p)
 
+    # get all new or updated meetings
+    meetings = []
+    cur.execute(sqlUpdatedMeetings, (project_id,START_DATE,))
+    items = cur.fetchall()
+    for p in items:
+      if not p['description']:
+          p['description'] = 'N/A'
+      if p['type'] == 'MeetingAgenda':
+        if not alreadyNotified(user_id, project_id, p['id'], CONTENT_TYPE_MEETING_AGENDA):
+          if len(p['description']) > LENGTH_EXCERPT:
+            p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + " [...]"
+          p['url'] = ("%s/meetings/%s/agenda" % (settings['pageurl'], p['id']))
+          meetings.append(p)
+      if p['type'] == 'MeetingMinutes':
+        if not alreadyNotified(user_id, project_id, p['id'], CONTENT_TYPE_MEETING_MINUTES):
+          if len(p['description']) > LENGTH_EXCERPT:
+            p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + " [...]"
+          p['url'] = ("%s/meetings/%s/minutes" % (settings['pageurl'], p['id']))
+          meetings.append(p)
+
     if sendNotifications(messages, tasks):
-      storeAllNotified(user_id, project_id, messages, tasks)
+      storeAllNotified(user_id, project_id, messages, tasks, meetings)
 
 
 
