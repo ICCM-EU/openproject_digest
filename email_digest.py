@@ -18,7 +18,7 @@ CONTENT_TYPE_MEETING_AGENDA = 3
 CONTENT_TYPE_MEETING_MINUTES = 4
 LENGTH_EXCERPT = 100
 CUSTOMFIELD_FREQUENCY = "FrequencyDigest"
-START_DATE = '2021-12-01'
+START_DATE = '2021-12-23'
 DEBUG = False
 localtz = timezone('Europe/Amsterdam')
 
@@ -98,7 +98,7 @@ order by updated_at asc"""
 
 # get all created or updated meetings per project within the past 2 weeks
 sqlUpdatedMeetings = """
-select mc.id, p.identifier as projectslug, m.title as subject, m.start_time, mc.type, mc.text as description, mc.updated_at, '' as url
+select mc.id, m.id as meeting_id, p.identifier as projectslug, m.title as subject, m.start_time, mc.type, mc.text as description, mc.updated_at, '' as url
 from meetings as m, meeting_contents as mc, projects as p
 where m.project_id = p.id
 and m.project_id = %s
@@ -159,13 +159,13 @@ def storeAllNotified(user, messages, tasks, meetings):
     storeNotified(user['id'], user['project_id'], task['id'], CONTENT_TYPE_TASKS)
   for meeting in meetings:
     if meeting['type'] == 'MeetingMinutes':
-      storeNotified(user_id, project_id, meeting['id'], CONTENT_TYPE_MEETING_MINUTES)
+      storeNotified(user['id'], user['project_id'], meeting['id'], CONTENT_TYPE_MEETING_MINUTES)
     if meeting['type'] == 'MeetingAgenda':
-      storeNotified(user_id, project_id, meeting['id'], CONTENT_TYPE_MEETING_AGENDA)
+      storeNotified(user['id'], user['project_id'], meeting['id'], CONTENT_TYPE_MEETING_AGENDA)
   sq3.commit()
 
 def sendMail(user, messages, tasks, meetings):
-  if (len(messages) == 0) and (len(tasks) == 0):
+  if (len(messages) == 0) and (len(tasks) == 0) and (len(meetings) == 0):
     return
 
   file_loader = jinja2.FileSystemLoader('templates')
@@ -183,6 +183,7 @@ def sendMail(user, messages, tasks, meetings):
 
     if DEBUG:
       print(msg.as_string())
+      print(output)
     else:
       print("sending email to %s" % (msg['To']))
       context = ssl.create_default_context()
@@ -289,13 +290,13 @@ for userRow in rows:
         if not alreadyNotified(userRow['id'], userRow['project_id'], p['id'], CONTENT_TYPE_MEETING_AGENDA):
           if len(p['description']) > LENGTH_EXCERPT:
             p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + " [...]"
-          p['url'] = ("%s/meetings/%s/agenda" % (settings['pageurl'], p['id']))
+          p['url'] = ("%s/meetings/%s/agenda" % (settings['pageurl'], p['meeting_id']))
           meetings.append(p)
       if p['type'] == 'MeetingMinutes':
         if not alreadyNotified(userRow['id'], userRow['project_id'], p['id'], CONTENT_TYPE_MEETING_MINUTES):
           if len(p['description']) > LENGTH_EXCERPT:
             p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + " [...]"
-          p['url'] = ("%s/meetings/%s/minutes" % (settings['pageurl'], p['id']))
+          p['url'] = ("%s/meetings/%s/minutes" % (settings['pageurl'], p['meeting_id']))
           meetings.append(p)
 
     if sendMail(userRow, messages, tasks, meetings):
