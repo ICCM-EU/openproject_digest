@@ -16,7 +16,7 @@ CONTENT_TYPE_TASKS = 2
 CONTENT_TYPE_MEETING_AGENDA = 3
 CONTENT_TYPE_MEETING_MINUTES = 4
 LENGTH_EXCERPT = 100000
-START_DATE = '2021-12-01'
+START_DATE = '2021-11-01'
 DEBUG = False
 localtz = timezone('Europe/Amsterdam')
 
@@ -108,7 +108,7 @@ order by updated_at asc"""
 
 # get all created or updated meetings per project within the past 2 weeks
 sqlUpdatedMeetings = """
-select mc.id, p.identifier as projectslug, m.title as subject, m.start_time, mc.type, mc.text as description, mc.updated_at, '' as url
+select mc.id, m.id as meeting_id, p.identifier as projectslug, m.title as subject, m.start_time, mc.type, mc.text as description, mc.updated_at, '' as url
 from meetings as m, meeting_contents as mc, projects as p
 where m.project_id = p.id
 and m.project_id = %s
@@ -184,8 +184,8 @@ def sendNotification(sender, msg):
   R = S.post(url=webhook_url, data=DATA)
   print(R)
 
-def sendNotifications(messages, tasks):
-  if (len(messages) == 0) and (len(tasks) == 0):
+def sendNotifications(messages, tasks, meetings):
+  if (len(messages) == 0) and (len(tasks) == 0) and (len(meetings) == 0):
     return
 
   try:
@@ -286,16 +286,16 @@ if DEBUG or processUser(int(frequency)):
         if not alreadyNotified(user_id, project_id, p['id'], CONTENT_TYPE_MEETING_AGENDA):
           if len(p['description']) > LENGTH_EXCERPT:
             p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + " [...]"
-          p['url'] = ("%s/meetings/%s/agenda" % (settings['pageurl'], p['id']))
+          p['url'] = ("%s/meetings/%s/agenda" % (settings['pageurl'], p['meeting_id']))
           meetings.append(p)
       if p['type'] == 'MeetingMinutes':
         if not alreadyNotified(user_id, project_id, p['id'], CONTENT_TYPE_MEETING_MINUTES):
           if len(p['description']) > LENGTH_EXCERPT:
             p['description'] = p['description'][0:LENGTH_EXCERPT].strip() + " [...]"
-          p['url'] = ("%s/meetings/%s/minutes" % (settings['pageurl'], p['id']))
+          p['url'] = ("%s/meetings/%s/minutes" % (settings['pageurl'], p['meeting_id']))
           meetings.append(p)
 
-    if sendNotifications(messages, tasks):
+    if sendNotifications(messages, tasks, meetings):
       storeAllNotified(user_id, project_id, messages, tasks, meetings)
 
 
