@@ -206,7 +206,7 @@ def sendNotifications(messages, tasks, meetings):
         else:
             sendNotification('OpenProject Tasks', msg)
     for meeting in meetings:
-        msg = ("%s\n%s\n%s" % (meeting['subject'], meeting['description'], meeting['url']))
+        msg = ("%s\n%s\n%s\n%s" % (meeting['subject'], meeting['start_time'], meeting['description'], meeting['url']))
         if DEBUG:
             print(msg)
         else:
@@ -281,7 +281,8 @@ if DEBUG or processUser(int(frequency)):
     items = cur.fetchall()
     for p in items:
       if not p['description']:
-          p['description'] = 'N/A'
+          # do not send out notifications for empty items
+          continue
       if p['type'] == 'MeetingAgenda':
         if not alreadyNotified(user_id, project_id, p['id'], CONTENT_TYPE_MEETING_AGENDA):
           if len(p['description']) > LENGTH_EXCERPT:

@@ -285,7 +285,8 @@ for userRow in rows:
     items = cur.fetchall()
     for p in items:
       if not p['description']:
-        p['description'] = 'N/A'
+        # do not send out notifications for empty items
+        continue
       if p['type'] == 'MeetingAgenda':
         if not alreadyNotified(userRow['id'], userRow['project_id'], p['id'], CONTENT_TYPE_MEETING_AGENDA):
           if len(p['description']) > LENGTH_EXCERPT:
