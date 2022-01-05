@@ -29,8 +29,8 @@
 <h2>New and updated meetings</h2>
 <ul>
 {% for m in meetings %}
-  <li><a href="{{ m.url }}">{{ m.type }}&nbsp;{{ m.subject }} {{m.start_time}}</a><br/>
-  Updated at:{{ m.updated_at.strftime('%Y-%m-%d %H:%M') }}<br/>
+  <li><a href="{{ m.url }}">{{ m.type }}&nbsp;{{ m.subject }} {{m.start_time}} UTC</a><br/>
+  Updated at: {{ m.updated_at.strftime('%Y-%m-%d %H:%M') }}<br/>
   {{  m.description }}
   </li>
 {% endfor %}

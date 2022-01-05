@@ -206,7 +206,7 @@ def sendNotifications(messages, tasks, meetings):
         else:
             sendNotification('OpenProject Tasks', msg)
     for meeting in meetings:
-        msg = ("%s\n%s\n%s\n%s" % (meeting['subject'], meeting['start_time'], meeting['description'], meeting['url']))
+        msg = ("%s\n%s UTC\n%s\n%s" % (meeting['subject'], meeting['start_time'], meeting['description'], meeting['url']))
         if DEBUG:
             print(msg)
         else:
