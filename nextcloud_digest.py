@@ -79,7 +79,7 @@ conn = psycopg2.connect(**params)
 cur = conn.cursor(cursor_factory = psycopg2.extras.DictCursor)
 
 # Connect to the sqlite database
-sq3 = sqlite3.connect('notifications_moxtra.sqlite3')
+sq3 = sqlite3.connect('notifications_nextcloud.sqlite3')
 sq3.execute("""
 CREATE TABLE IF NOT EXISTS Notified (
 id INTEGER PRIMARY KEY AUTOINCREMENT,
