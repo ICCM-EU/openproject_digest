@@ -2,3 +2,5 @@ psycopg2-binary
 Jinja2
 requests
 pytz
+webdavclient3
+pdfkit
