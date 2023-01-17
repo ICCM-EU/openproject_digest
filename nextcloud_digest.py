@@ -10,6 +10,12 @@ import requests
 import json
 from pytz import timezone
 import pytz
+from webdav3.client import Client
+import tempfile
+# pdfkit requires wkhtmltopdf to be installed: apt-get install wkhtmltopdf
+import pdfkit
+import time
+
 
 CONTENT_TYPE_MESSAGES = 1
 CONTENT_TYPE_TASKS = 2
@@ -184,6 +190,45 @@ def storeAllNotified(user_id, project_id, messages, tasks, meetings):
       storeNotified(user_id, project_id, meeting['id'], CONTENT_TYPE_MEETING_AGENDA)
   sq3.commit()
 
+def shareAttachment(msg):
+
+  # upload the file
+  # see https://pypi.org/project/webdavclient3/
+  options = {
+    'webdav_hostname': f"https://cloud.iccm-europe.org/remote.php/dav/files/{nc_user}",
+    'webdav_login':    nc_user,
+    'webdav_password': nc_pwd
+  }
+  filename = f"html_{time.time()}.pdf"
+  client = Client(options)
+
+  client.mkdir('/Talk')
+
+  fp = tempfile.NamedTemporaryFile(mode="w+", delete=False)
+  fp.close()
+  pdfkit.from_string(msg, fp.name)
+  client.upload_sync(remote_path=f"/Talk/{filename}", local_path=fp.name)
+  os.unlink(fp.name)
+
+  # if 404, is the app enabled? php occ app:enable files_sharing
+  S = requests.Session()
+  data = {
+          "shareType": 10,
+          "shareWith": nc_channel,
+          "path": f"/Talk/{filename}",
+          #"referenceId": "TODO",
+          #"talkMetaData": {"messageType": "comment"}
+          }
+  # see https://nextcloud-talk.readthedocs.io/en/latest/chat/#share-a-file-to-the-chat
+  url = f"{nc_url}/ocs/v2.php/apps/files_sharing/api/v1/shares"
+  print(url)
+  payload = json.dumps(data)
+  headers = {'content-type': 'application/json', 'OCS-APIRequest': 'true'}
+  R = S.post(url, data=payload, headers=headers, auth=(nc_user, nc_pwd))
+  print(R)
+  if R.status_code < 200 or R.status_code >=300:
+      raise Exception("problem sharing the file")
+
 def sendNotification(sender, msg):
   S = requests.Session()
   data = {
@@ -217,7 +262,11 @@ def sendNotifications(messages, tasks, meetings):
         if DEBUG:
             print(msg)
         else:
-            sendNotification('OpenProject Forum', msg)
+            if "<table" in msg or "<tbody" in msg:
+                sendNotification('OpenProject Forum', msg[0:msg.index('<t')])
+                shareAttachment(msg)
+            else:
+                sendNotification('OpenProject Forum', msg)
     for task in tasks:
         msg = ("%s\n%s\n%s" % (task['subject'], task['description'], task['url']))
         if DEBUG:
