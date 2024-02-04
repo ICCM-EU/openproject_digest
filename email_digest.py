@@ -264,7 +264,7 @@ for userRow in rows:
           p['parent_id'] = p['id']
         if len(p['content']) > LENGTH_EXCERPT:
           p['content'] = p['content'][0:LENGTH_EXCERPT].strip() + "[...]"
-        p['created_at'] = pytz.utc.localize(p['created_at'], is_dst=None).astimezone(localtz)
+        #p['created_at'] = pytz.utc.localize(p['created_at'], is_dst=False).astimezone(localtz)
         p['url'] = ("%s/topics/%s?r=%s#message-%s" % (settings['pageurl'], p['parent_id'], p['id'], p['id']))
         messages.append(p)
 
